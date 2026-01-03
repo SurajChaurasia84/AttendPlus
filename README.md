@@ -16,30 +16,30 @@ Attend Plus is created to make attendance:
 ✨ Key Features
 
 👨‍🏫 Teacher Dashboard
-• Personalized greeting
-• Total classes vs attendance submitted
-• Today’s class overview
+- Personalized greeting
+- Total classes vs attendance submitted
+- Today’s class overview
 
 ✅ Attendance Management
-• Present / Absent marking
-• Live present & absent count
-• Attendance submit lock (no duplicate entry)
-• Submit button disabled after submission
+- Present / Absent marking
+- Live present & absent count
+- Attendance submit lock (no duplicate entry)
+- Submit button disabled after submission
 
 👨‍🎓 Student Management
-• Add students with name & roll number
-• Roll number duplication prevention
-• Organized class-wise student list
+- Add students with name & roll number
+- Roll number duplication prevention
+- Organized class-wise student list
 
 📊 Reports & Analytics
-• Monthly attendance tracking
-• Student-wise attendance percentage
-• Class-wise attendance summary
+- Monthly attendance tracking
+- Student-wise attendance percentage
+- Class-wise attendance summary
 
 🔔 UX Feedback
-• Loading indicators on buttons
-• Snackbar success & error messages
-• Disabled actions to prevent mistakes
+- Loading indicators on buttons
+- Snackbar success & error messages
+- Disabled actions to prevent mistakes
 
 🎨 UX Design Principles
 
@@ -52,25 +52,25 @@ Attend Plus is created to make attendance:
 📱 App Screens
 
 📍 Welcome Screen
-• Fixed image height
-• No text shifting
-• Smooth onboarding
+- Fixed image height
+- No text shifting
+- Smooth onboarding
 
 📍 Home Screen
-• Real-time Firebase data
-• Overview cards
-• Quick action buttons
+- Real-time Firebase data
+- Overview cards
+- Quick action buttons
 
 📍 Attendance Screen
-• Student list
-• Present / Absent toggle
-• Attendance count at top-left
-• Submit button disabled after submission
+- Student list
+- Present / Absent toggle
+- Attendance count at top-left
+- Submit button disabled after submission
 
 📍 Reports Screen
-• Month navigation
-• Attendance percentage
-• Scrollable class sections
+- Month navigation
+- Attendance percentage
+- Scrollable class sections
 
 🛠 Tech Stack
 
@@ -83,20 +83,20 @@ Attend Plus is created to make attendance:
 🗂 Data Structure
 
 👤 User
-• Name
-• Department
-• Total classes
+- Name
+- Department
+- Total classes
 
 🏫 Class
-• Class name
-• Subject name
-• Total students
+- Class name
+- Subject name
+- Total students
 
 📅 Attendance
-• Date
-• Present count
-• Absent count
-• Student-wise record
+- Date
+- Present count
+- Absent count
+- Student-wise record
 
 🚀 How to Run
 
