@@ -18,11 +18,10 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
   bool _saving = false;
   bool _addMultiple = false; // ⬅️ toggle to stay on screen
 
-  CollectionReference get _students =>
-      FirebaseFirestore.instance
-          .collection('classes')
-          .doc(widget.classId)
-          .collection('students');
+  CollectionReference get _students => FirebaseFirestore.instance
+      .collection('classes')
+      .doc(widget.classId)
+      .collection('students');
 
   Future<void> _addStudent() async {
     if (!_formKey.currentState!.validate()) return;
@@ -76,8 +75,9 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text("Error: $e")));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error: $e")));
     } finally {
       setState(() => _saving = false);
     }
@@ -130,20 +130,19 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
 
               // Toggle for adding multiple students
               // Toggle for adding multiple students (Right aligned)
-Row(
-  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-  children: [
-    const Text(
-      "Add multiple students",
-      style: TextStyle(fontSize: 16),
-    ),
-    Switch(
-      value: _addMultiple,
-      onChanged: (v) => setState(() => _addMultiple = v),
-    ),
-  ],
-),
-
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    "Add multiple students",
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  Switch(
+                    value: _addMultiple,
+                    onChanged: (v) => setState(() => _addMultiple = v),
+                  ),
+                ],
+              ),
 
               const SizedBox(height: 20),
 

@@ -4,13 +4,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import 'class_detail_screen.dart';
 import 'attendance_screen.dart';
+import 'add_class_screen.dart';
 
 class ClassesScreen extends StatefulWidget {
   final bool fromAttendance;
 
   const ClassesScreen({
     super.key,
-    this.fromAttendance = false, // 👈 default
+    this.fromAttendance = false,
   });
 
   @override
@@ -18,102 +19,49 @@ class ClassesScreen extends StatefulWidget {
 }
 
 class _ClassesScreenState extends State<ClassesScreen> {
-  final TextEditingController _classController = TextEditingController();
-  final TextEditingController _subjectController = TextEditingController();
-
-  final CollectionReference _classesCollection = FirebaseFirestore.instance
-      .collection('classes');
+  final CollectionReference _classesCollection =
+      FirebaseFirestore.instance.collection('classes');
 
   final User? _user = FirebaseAuth.instance.currentUser;
 
-  // ➕ Open bottom sheet for adding class + subject
-  void _openModal() {
-    _classController.clear();
-    _subjectController.clear();
+  /// helper to sort favorites on top
+  List<QueryDocumentSnapshot> _sortDocs(List<QueryDocumentSnapshot> docs) {
+    docs.sort((a, b) {
+      // Safely check for 'isFavorite' field
+      bool aFav = a.data() is Map<String, dynamic> &&
+          (a.data() as Map<String, dynamic>).containsKey('isFavorite')
+          ? (a.data() as Map<String, dynamic>)['isFavorite'] as bool
+          : false;
+      bool bFav = b.data() is Map<String, dynamic> &&
+          (b.data() as Map<String, dynamic>).containsKey('isFavorite')
+          ? (b.data() as Map<String, dynamic>)['isFavorite'] as bool
+          : false;
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-          left: 16,
-          right: 16,
-          top: 16,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _classController,
-              decoration: const InputDecoration(
-                labelText: 'Class Name',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _subjectController,
-              decoration: const InputDecoration(
-                labelText: 'Subject Name',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _saveClass,
-              child: const Text('Add Class'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+      if (aFav && !bFav) return -1;
+      if (!aFav && bFav) return 1;
 
-  // 💾 Save new class with subject
-  Future<void> _saveClass() async {
-    final className = _classController.text.trim();
-    final subjectName = _subjectController.text.trim();
-
-    if (className.isEmpty || subjectName.isEmpty || _user == null) return;
-
-    try {
-      // Add class
-      final docRef = await _classesCollection.add({
-        'name': className,
-        'userId': _user.uid,
-        'totalStudents': 0,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-
-      // Add subject as subcollection
-      await docRef.collection('subjects').add({
-        'name': subjectName,
-        'addedAt': FieldValue.serverTimestamp(),
-      });
-
-      _classController.clear();
-      _subjectController.clear();
-      if (mounted) Navigator.pop(context);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
-    }
+      // newest first
+      Timestamp aTime = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp;
+      Timestamp bTime = (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp;
+      return bTime.compareTo(aTime);
+    });
+    return docs;
   }
 
   @override
   Widget build(BuildContext context) {
     if (_user == null) {
-      return const Center(child: Text("Please Login"));
+      return const Scaffold(
+        body: Center(child: Text("Please login")),
+      );
     }
 
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.fromAttendance ? 'Select Class' : 'Classes'),
       ),
+
+      /// 📋 CLASSES LIST (AUTO UPDATE)
       body: StreamBuilder<QuerySnapshot>(
         stream: _classesCollection
             .where('userId', isEqualTo: _user.uid)
@@ -128,7 +76,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final docs = snapshot.data!.docs;
+          final docs = _sortDocs(snapshot.data!.docs);
 
           if (docs.isEmpty) {
             return const Center(child: Text('No classes yet'));
@@ -143,94 +91,117 @@ class _ClassesScreenState extends State<ClassesScreen> {
 
               final classId = doc.id;
               final className = data['name'] ?? '';
+              final subjectName = data['subjectName'] ?? '';
               final totalStudents = data['totalStudents'] ?? 0;
 
-              // Fetch first subject (for display)
-              return StreamBuilder<QuerySnapshot>(
-                stream: _classesCollection
-                    .doc(classId)
-                    .collection('subjects')
-                    .orderBy('addedAt')
-                    .snapshots(),
-                builder: (context, subSnapshot) {
-                  String subjectName = '';
-                  if (subSnapshot.hasData &&
-                      subSnapshot.data!.docs.isNotEmpty) {
-                    subjectName =
-                        (subSnapshot.data!.docs.first.data()
-                            as Map<String, dynamic>)['name'] ??
-                        '';
-                  }
+              // Safe check for isFavorite
+              final isFav = data.containsKey('isFavorite') ? data['isFavorite'] as bool : false;
 
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    child: ListTile(
-                      leading: const Icon(Icons.class_),
-                      title: RichText(
-                        text: TextSpan(
-                          children: [
-                            TextSpan(
-                              text: className,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                color: Colors.black,
-                              ),
-                            ),
-                            const TextSpan(
-                              text: ' • ', // the dot separator
-                              style: TextStyle(
-                                fontSize: 14,
-                                // fontWeight: FontWeight.bold,
-                                color: Colors.black,
-                              ),
-                            ),
-                            TextSpan(
-                              text: subjectName,
-                              style: const TextStyle(
-                                fontSize: 13, // smaller than class name
-                                color: Colors.grey, // lighter/darker shade
-                              ),
-                            ),
-                          ],
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                elevation: 2,
+                child: ListTile(
+                  leading: const Icon(Icons.class_),
+
+                  /// class name • subject in same row
+                  title: Row(
+                    children: [
+                      Text(
+                        className,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                      subtitle: Text('$totalStudents Students'),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                      onTap: () {
-                        if (widget.fromAttendance) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => AttendanceScreen(
-                                classId: classId,
-                                className: className,
-                              ),
-                            ),
-                          );
-                        } else {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ClassDetailScreen(
-                                classId: classId,
-                                subjectName: subjectName,
-                              ),
-                            ),
-                          );
-                        }
-                      },
-                    ),
-                  );
-                },
+                      if (subjectName.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        const Text(
+                          '•',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          subjectName,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  subtitle: Text('$totalStudents Students'),
+
+                  /// trailing: star + arrow
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: Icon(
+                          isFav ? Icons.star : Icons.star_border,
+                          color: isFav
+                              ? Theme.of(context).colorScheme.primary
+                              : Colors.grey,
+                        ),
+                        onPressed: () async {
+                          final newFavStatus = !isFav;
+
+                          /// update in firestore
+                          await _classesCollection
+                              .doc(classId)
+                              .update({'isFavorite': newFavStatus});
+                        },
+                      ),
+                      const Icon(Icons.arrow_forward_ios, size: 16),
+                    ],
+                  ),
+
+                  /// 👉 NAVIGATION
+                  onTap: () {
+                    if (widget.fromAttendance) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AttendanceScreen(
+                            classId: classId,
+                            className: className,
+                          ),
+                        ),
+                      );
+                    } else {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ClassDetailScreen(
+                            classId: classId,
+                            subjectName: subjectName,
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                ),
               );
             },
           );
         },
       ),
+
+      /// ➕ ADD CLASS
       floatingActionButton: widget.fromAttendance
           ? null
           : FloatingActionButton(
-              onPressed: _openModal,
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const AddClassScreen(),
+                  ),
+                );
+              },
               child: const Icon(Icons.add),
             ),
     );

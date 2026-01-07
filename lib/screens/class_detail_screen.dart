@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'add_student_screen.dart';
+import 'class_info.dart';
+import 'student_info.dart';
 
 class ClassDetailScreen extends StatefulWidget {
   final String classId;
@@ -18,29 +20,22 @@ class ClassDetailScreen extends StatefulWidget {
 }
 
 class _ClassDetailScreenState extends State<ClassDetailScreen> {
-  final CollectionReference _classes =
-      FirebaseFirestore.instance.collection('classes');
+  final _classes = FirebaseFirestore.instance.collection('classes');
 
   CollectionReference get _students =>
       _classes.doc(widget.classId).collection('students');
 
   DateTime selectedMonth = DateTime.now();
 
-  String _monthKey(DateTime d) =>
-      "${d.year}-${d.month.toString().padLeft(2, '0')}";
-
-  // ⬅️➡️ Month navigation
   void _previousMonth() {
     setState(() {
-      selectedMonth =
-          DateTime(selectedMonth.year, selectedMonth.month - 1);
+      selectedMonth = DateTime(selectedMonth.year, selectedMonth.month - 1);
     });
   }
 
   void _nextMonth() {
     setState(() {
-      selectedMonth =
-          DateTime(selectedMonth.year, selectedMonth.month + 1);
+      selectedMonth = DateTime(selectedMonth.year, selectedMonth.month + 1);
     });
   }
 
@@ -52,11 +47,44 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
       lastDate: DateTime(2100),
       initialDatePickerMode: DatePickerMode.year,
     );
+
     if (picked != null) {
       setState(() {
         selectedMonth = DateTime(picked.year, picked.month);
       });
     }
+  }
+
+  Future<double> _studentPercent(String studentId) async {
+    final start = DateTime(selectedMonth.year, selectedMonth.month, 1);
+    final end = DateTime(selectedMonth.year, selectedMonth.month + 1, 0);
+
+    final snap = await _classes
+        .doc(widget.classId)
+        .collection('attendance')
+        .where(
+          FieldPath.documentId,
+          isGreaterThanOrEqualTo: DateFormat('yyyy-MM-dd').format(start),
+        )
+        .where(
+          FieldPath.documentId,
+          isLessThanOrEqualTo: DateFormat('yyyy-MM-dd').format(end),
+        )
+        .get();
+
+    int total = 0;
+    int present = 0;
+
+    for (var d in snap.docs) {
+      final r = d['records'];
+      if (r != null && r[studentId] != null) {
+        total++;
+        if (r[studentId] == 'P') present++;
+      }
+    }
+
+    if (total == 0) return 0;
+    return (present / total) * 100;
   }
 
   void _openAddStudent() {
@@ -66,62 +94,6 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
         builder: (_) => AddStudentScreen(classId: widget.classId),
       ),
     );
-  }
-
-  Future<void> _editSubject(String current) async {
-    final controller = TextEditingController(text: current);
-
-    await showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Edit Subject"),
-        content: TextField(controller: controller),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cancel")),
-          ElevatedButton(
-            onPressed: () async {
-              if (controller.text.trim().isNotEmpty) {
-                await _classes.doc(widget.classId).update({
-                  'subjectName': controller.text.trim(),
-                });
-              }
-              if (mounted) Navigator.pop(context);
-            },
-            child: const Text("Update"),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _deleteClass() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Delete Class"),
-        content: const Text("This cannot be undone"),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text("Cancel")),
-          ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text("Delete")),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    final students = await _students.get();
-    for (var d in students.docs) {
-      await d.reference.delete();
-    }
-    await _classes.doc(widget.classId).delete();
-
-    if (mounted) Navigator.pop(context);
   }
 
   @override
@@ -138,62 +110,67 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
             final subject = data?['subjectName'] ?? widget.subjectName;
             final total = data?['totalStudents'] ?? 0;
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(subject, style: const TextStyle(fontSize: 16)),
-                Text(
-                  "$total Students",
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ],
+            return GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ClassInfoScreen(
+                      classId: widget.classId,
+                      // subjectName: subject,
+                    ),
+                  ),
+                );
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(subject, style: const TextStyle(fontSize: 16)),
+                  Text(
+                    "$total Students",
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
             );
           },
         ),
         actions: [
-          PopupMenuButton<String>(
-            onSelected: (v) {
-              if (v == 'add') _openAddStudent();
-              if (v == 'edit') _editSubject(widget.subjectName);
-              if (v == 'delete') _deleteClass();
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'add', child: Text("Add Student")),
-              PopupMenuItem(value: 'edit', child: Text("Edit Subject")),
-              PopupMenuItem(value: 'delete', child: Text("Delete Class")),
-            ],
+          IconButton(
+            icon: const Icon(Icons.person_add),
+            onPressed: _openAddStudent,
           ),
         ],
       ),
-
       body: Column(
         children: [
-          // 📅 Month selector
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 10),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 IconButton(
-                    icon: const Icon(Icons.chevron_left),
-                    onPressed: _previousMonth),
+                  icon: const Icon(Icons.chevron_left),
+                  onPressed: _previousMonth,
+                ),
                 InkWell(
                   onTap: _selectMonth,
                   child: Text(
                     monthLabel,
                     style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w600),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 IconButton(
-                    icon: const Icon(Icons.chevron_right),
-                    onPressed: _nextMonth),
+                  icon: const Icon(Icons.chevron_right),
+                  onPressed: _nextMonth,
+                ),
               ],
             ),
           ),
           const Divider(height: 1),
-
-          // 👨‍🎓 Student list + attendance %
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: _students.orderBy('rollNo').snapshots(),
@@ -203,36 +180,22 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                 }
 
                 if (snap.data!.docs.isEmpty) {
-                  return const Center(child: Text("No students yet"));
+                  return const Center(child: Text("No students"));
                 }
 
                 return ListView(
                   children: snap.data!.docs.map((doc) {
-                    final student =
-                        doc.data() as Map<String, dynamic>;
+                    final s = doc.data() as Map<String, dynamic>;
 
-                    return StreamBuilder<DocumentSnapshot>(
-                      stream: _students
-                          .doc(doc.id)
-                          .collection('attendance')
-                          .doc(_monthKey(selectedMonth))
-                          .snapshots(),
-                      builder: (_, aSnap) {
-                        double percent = 0;
-
-                        if (aSnap.hasData && aSnap.data!.exists) {
-                          final a =
-                              aSnap.data!.data() as Map<String, dynamic>;
-                          final int p = a['present'] ?? 0;
-                          final int t = a['total'] ?? 0;
-                          if (t > 0) percent = (p / t) * 100;
-                        }
+                    return FutureBuilder<double>(
+                      future: _studentPercent(doc.id),
+                      builder: (_, pSnap) {
+                        final percent = pSnap.data ?? 0;
 
                         return ListTile(
                           leading: const Icon(Icons.person),
-                          title: Text(student['name']),
-                          subtitle:
-                              Text("Roll No: ${student['rollNo']}"),
+                          title: Text(s['name']),
+                          subtitle: Text("Roll No: ${s['rollNo']}"),
                           trailing: Text(
                             "${percent.toStringAsFixed(0)}%",
                             style: TextStyle(
@@ -240,10 +203,23 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                               color: percent >= 75
                                   ? Colors.green
                                   : percent >= 50
-                                      ? Colors.orange
-                                      : Colors.red,
+                                  ? Colors.orange
+                                  : Colors.red,
                             ),
                           ),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => StudentInfoScreen(
+                                  classId: widget.classId,
+                                  studentId: doc.id,
+                                  studentName: s['name'],
+                                  rollNo: s['rollNo'].toString(),
+                                ),
+                              ),
+                            );
+                          },
                         );
                       },
                     );

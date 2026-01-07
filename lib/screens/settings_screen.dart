@@ -2,86 +2,88 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:iconsax/iconsax.dart';
+import 'profile_screen.dart';
+import 'privacy_screen.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
-  // Logout
-  Future<void> _logout(BuildContext context) async {
-    await FirebaseAuth.instance.signOut();
-    Navigator.pushNamedAndRemoveUntil(context, "/login", (route) => false);
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  String userName = "";
+  String userEmail = "";
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserInfo();
   }
 
-  // Delete account completely (Auth + Firestore)
-  Future<void> _deleteAccount(BuildContext context) async {
+  /// Fetch user name from Firestore
+  Future<void> _loadUserInfo() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
+    setState(() {
+      userEmail = user.email ?? "";
+    });
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (doc.exists) {
+        final data = doc.data();
+        setState(() {
+          userName = data?['name'] ?? "";
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching user info: $e");
+    }
+  }
+
+  /// Logout with confirmation
+  Future<void> _logout(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text("Confirm Delete"),
-        content: const Text("This will permanently delete your account and all your data."),
+        title: const Text("Confirm Logout"),
+        content: const Text("Are you sure you want to logout?"),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text("Cancel")),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("Cancel"),
+          ),
           TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text("Delete", style: TextStyle(color: Colors.red))),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text("Logout", style: TextStyle(color: Colors.red)),
+          ),
         ],
       ),
     );
 
-    if (confirmed != true) return;
-
-    try {
-      // 1️⃣ Delete all user data from Firestore
-      final userDoc = FirebaseFirestore.instance.collection('users').doc(user.uid);
-      final classesCollection = userDoc.collection('classes');
-      final classesSnapshot = await classesCollection.get();
-
-      for (var classDoc in classesSnapshot.docs) {
-        final studentsSnapshot = await classDoc.reference.collection('students').get();
-        for (var student in studentsSnapshot.docs) {
-          await student.reference.delete();
-        }
-        await classDoc.reference.delete();
-      }
-
-      await userDoc.delete();
-
-      // 2️⃣ Delete Firebase Auth user
-      await user.delete();
-
-      // 3️⃣ Redirect to login screen
+    if (confirmed == true) {
+      await FirebaseAuth.instance.signOut();
       Navigator.pushNamedAndRemoveUntil(context, "/login", (route) => false);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Account and all data deleted successfully")));
-    } catch (e) {
-      // If the user needs recent login
-      if (e.toString().contains("requires-recent-login")) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text(
-                "Please log out and log back in before deleting your account.")));
-      } else {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Error: $e")));
-      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+    final displayName = userName.isNotEmpty ? userName : "User";
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: SafeArea(
         child: ListView(
           children: [
-            // Logged-in user info
+            // 🔹 User info
             Container(
               padding: const EdgeInsets.all(20),
               child: Row(
@@ -94,59 +96,62 @@ class SettingsScreen extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(user?.email ?? "Unknown User",
-                          style: const TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.w600)),
-                      const Text("Tap to view profile",
-                          style: TextStyle(fontSize: 13, color: Colors.grey)),
+                      Text(
+                        displayName,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        userEmail,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey,
+                        ),
+                      ),
                     ],
-                  )
+                  ),
                 ],
               ),
             ),
             const Divider(),
 
-            // Profile
+            // 🔹 Profile
             ListTile(
               leading: const Icon(Iconsax.user),
               title: const Text("Profile"),
               trailing: const Icon(Icons.arrow_forward_ios, size: 16),
               onTap: () {
-                Navigator.pushNamed(context, "/profile");
+                // Navigate to the ProfileScreen we just created
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                );
               },
             ),
 
-            // Notifications
-            ListTile(
-              leading: const Icon(Iconsax.notification),
-              title: const Text("Notifications"),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-              onTap: () {},
-            ),
-
-            // Privacy
+            // 🔹 Privacy
             ListTile(
               leading: const Icon(Iconsax.lock),
               title: const Text("Privacy"),
               trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PrivacyScreen()),
+                );
+              },
             ),
 
             const Divider(),
 
-            // Logout
+            // 🔹 Logout
             ListTile(
               leading: const Icon(Iconsax.logout4, color: Colors.red),
-              title:
-                  const Text("Logout", style: TextStyle(color: Colors.red)),
+              title: const Text("Logout", style: TextStyle(color: Colors.red)),
               onTap: () => _logout(context),
-            ),
-
-            // Delete Account
-            ListTile(
-              leading: const Icon(Icons.delete_forever, color: Colors.redAccent),
-              title: const Text("Delete Account"),
-              onTap: () => _deleteAccount(context),
             ),
           ],
         ),

@@ -1,216 +1,296 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'class_report_screen.dart'; // make sure you have this screen
 
-class GlobalReportsScreen extends StatefulWidget {
-  const GlobalReportsScreen({super.key});
+class ReportsScreen extends StatefulWidget {
+  const ReportsScreen({super.key});
 
   @override
-  State<GlobalReportsScreen> createState() => _GlobalReportsScreenState();
+  State<ReportsScreen> createState() => _ReportsScreenState();
 }
 
-class _GlobalReportsScreenState extends State<GlobalReportsScreen> {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
+class _ReportsScreenState extends State<ReportsScreen> {
+  final _db = FirebaseFirestore.instance;
+  final _user = FirebaseAuth.instance.currentUser;
   DateTime selectedMonth = DateTime.now();
 
-  void _previousMonth() {
-    setState(() {
-      selectedMonth =
-          DateTime(selectedMonth.year, selectedMonth.month - 1);
-    });
-  }
+  void _pickMonth() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: selectedMonth,
+      firstDate: DateTime(2022),
+      lastDate: DateTime(2100),
+      initialDatePickerMode: DatePickerMode.year,
+    );
 
-  void _nextMonth() {
-    setState(() {
-      selectedMonth =
-          DateTime(selectedMonth.year, selectedMonth.month + 1);
-    });
-  }
-
-  String get monthLabel => DateFormat('MMMM yyyy').format(selectedMonth);
-
-  /// Load all classes + students + attendance for the selected month
-  Future<List<Map<String, dynamic>>> _loadGlobalReport() async {
-    final classesSnap = await _firestore.collection('classes').get();
-    final List<Map<String, dynamic>> allClasses = [];
-
-    for (final classDoc in classesSnap.docs) {
-      final classId = classDoc.id;
-      final subjectName = classDoc['subjects'] ?? classDoc['name'] ?? "Class";
-
-      // Students
-      final studentsSnap = await _firestore
-          .collection('classes')
-          .doc(classId)
-          .collection('students')
-          .get();
-
-      final studentStats = <Map<String, dynamic>>[];
-
-      // Attendance
-      final attendanceSnap = await _firestore
-          .collection('classes')
-          .doc(classId)
-          .collection('attendance')
-          .get();
-
-      // Filter attendance by selected month
-      final monthlyAttendanceDocs = attendanceSnap.docs.where((doc) {
-        final createdAt = doc['createdAt'];
-        if (createdAt == null) return false;
-        final date = (createdAt as Timestamp).toDate();
-        return date.year == selectedMonth.year &&
-            date.month == selectedMonth.month;
-      }).toList();
-
-      final attendanceDays = monthlyAttendanceDocs.length;
-
-      for (final studentDoc in studentsSnap.docs) {
-        final studentId = studentDoc.id;
-        final studentName = studentDoc['name'];
-        final rollNo = studentDoc['rollNo'];
-
-        int present = 0;
-
-        for (final attDoc in monthlyAttendanceDocs) {
-          final records = Map<String, dynamic>.from(attDoc['records'] ?? {});
-          if (records[studentId] == 'P') present++;
-        }
-
-        final percent = attendanceDays == 0 ? 0.0 : (present / attendanceDays) * 100;
-
-        studentStats.add({
-          'studentId': studentId,
-          'name': studentName,
-          'rollNo': rollNo,
-          'present': present,
-          'absent': attendanceDays - present,
-          'attendancePercent': percent,
-        });
-      }
-
-      final daysInMonth = DateUtils.getDaysInMonth(
-          selectedMonth.year, selectedMonth.month);
-      final holidays = daysInMonth - attendanceDays;
-
-      allClasses.add({
-        'classId': classId,
-        'subjectName': subjectName,
-        'students': studentStats,
-        'totalStudents': studentsSnap.docs.length,
-        'holidays': holidays < 0 ? 0 : holidays,
-        'attendanceDays': attendanceDays,
+    if (picked != null) {
+      setState(() {
+        selectedMonth = DateTime(picked.year, picked.month);
       });
     }
+  }
 
-    return allClasses;
+  /// 📊 Fetch monthly attendance stats (current user's classes only)
+  Future<Map<String, double>> _monthlyStats() async {
+    if (_user == null) return {'present': 0, 'total': 0, 'percent': 0};
+
+    final start = DateTime(selectedMonth.year, selectedMonth.month, 1);
+    final end = DateTime(selectedMonth.year, selectedMonth.month + 1, 0);
+
+    final classesSnap = await _db
+        .collection('classes')
+        .where('userId', isEqualTo: _user.uid)
+        .get();
+
+    double totalPresent = 0;
+    double totalEntries = 0;
+
+    for (var c in classesSnap.docs) {
+      final attendanceSnap = await _db
+          .collection('classes')
+          .doc(c.id)
+          .collection('attendance')
+          .where(
+            FieldPath.documentId,
+            isGreaterThanOrEqualTo: DateFormat('yyyy-MM-dd').format(start),
+          )
+          .where(
+            FieldPath.documentId,
+            isLessThanOrEqualTo: DateFormat('yyyy-MM-dd').format(end),
+          )
+          .get();
+
+      for (var d in attendanceSnap.docs) {
+        final records = Map<String, dynamic>.from(d.data()['records'] ?? {});
+        for (var v in records.values) {
+          totalEntries++;
+          if (v == 'P') totalPresent++;
+        }
+      }
+    }
+
+    final percent = totalEntries == 0 ? 0 : (totalPresent / totalEntries) * 100;
+
+    return {
+      'present': totalPresent.toDouble(),
+      'total': totalEntries.toDouble(),
+      'percent': percent.toDouble(),
+    };
+  }
+
+  /// 📊 Bar Chart Data
+  BarChartGroupData _bar(int x, double y) {
+    return BarChartGroupData(
+      x: x,
+      barRods: [
+        BarChartRodData(
+          toY: y,
+          width: 14,
+          borderRadius: BorderRadius.circular(4),
+          color: Colors.deepPurple,
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_user == null) {
+      return const Scaffold(
+        body: Center(child: Text("Please login")),
+      );
+    }
+
+    final monthLabel = DateFormat('MMMM yyyy').format(selectedMonth);
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Global Reports"),
-      ),
-      body: Column(
-        children: [
-          // Month Selector
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                    icon: const Icon(Icons.chevron_left),
-                    onPressed: _previousMonth),
-                Text(
-                  monthLabel,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                IconButton(
-                    icon: const Icon(Icons.chevron_right),
-                    onPressed: _nextMonth),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-          Expanded(
-            child: FutureBuilder<List<Map<String, dynamic>>>(
-              future: _loadGlobalReport(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+      appBar: AppBar(title: const Text("Reports"), centerTitle: false),
+      body: FutureBuilder<Map<String, double>>(
+        future: _monthlyStats(),
+        builder: (_, snap) {
+          if (!snap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-                if (snapshot.hasError) {
-                  return Center(
-                      child: Text("Error: ${snapshot.error}"));
-                }
+          final percent = snap.data!['percent'] ?? 0;
 
-                final classes = snapshot.data ?? [];
-
-                if (classes.isEmpty) {
-                  return const Center(child: Text("No classes found"));
-                }
-
-                return ListView.builder(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: classes.length,
-                  itemBuilder: (context, index) {
-                    final cls = classes[index];
-                    final students = cls['students'] as List<dynamic>;
-
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 8),
-                      child: ExpansionTile(
-                        title: Text(cls['subjectName'],
-                            style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text(
-                            "Students: ${cls['totalStudents']} • Holidays: ${cls['holidays']} • Attendance Days: ${cls['attendanceDays']}"),
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text("Student Attendance Details",
-                                    style:
-                                        TextStyle(fontWeight: FontWeight.bold)),
-                                const SizedBox(height: 6),
-                                ...students.map<Widget>((s) {
-                                  final percent = s['attendancePercent'] as double;
-                                  return ListTile(
-                                    leading: const Icon(Icons.person),
-                                    title: Text(s['name']),
-                                    subtitle: Text(
-                                        "Roll: ${s['rollNo']} • P: ${s['present']}  A: ${s['absent']}"),
-                                    trailing: Text(
-                                      "${percent.toStringAsFixed(0)}%",
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: percent >= 75
-                                            ? Colors.green
-                                            : percent >= 50
-                                                ? Colors.orange
-                                                : Colors.red,
-                                      ),
-                                    ),
-                                  );
-                                }).toList(),
-                              ],
-                            ),
-                          ),
-                        ],
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              /// 📅 Month Filter
+              GestureDetector(
+                onTap: _pickMonth,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.calendar_month),
+                    const SizedBox(width: 8),
+                    Text(
+                      monthLabel,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
                       ),
-                    );
-                  },
-                );
-              },
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              /// 📈 Summary Cards
+              Row(
+                children: [
+                  _statCard(
+                    "Attendance",
+                    "${percent.toStringAsFixed(1)}%",
+                    Colors.green,
+                  ),
+                  const SizedBox(width: 12),
+                  _statCard(
+                    "Status",
+                    percent >= 75
+                        ? "Excellent"
+                        : percent >= 50
+                            ? "Average"
+                            : "Poor",
+                    percent >= 75
+                        ? Colors.green
+                        : percent >= 50
+                            ? Colors.orange
+                            : Colors.red,
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 30),
+
+              /// 📊 Attendance Graph
+              const Text(
+                "Monthly Attendance Overview",
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+
+              SizedBox(
+                height: 220,
+                child: BarChart(
+                  BarChartData(
+                    maxY: 100,
+                    barGroups: [_bar(0, percent)],
+                    titlesData: FlTitlesData(
+                      leftTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 28,
+                          interval: 25,
+                        ),
+                      ),
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          getTitlesWidget: (_, __) =>
+                              const Text("Attendance"),
+                        ),
+                      ),
+                      topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                    ),
+                    gridData: FlGridData(show: true),
+                    borderData: FlBorderData(show: false),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 30),
+
+              /// 📚 Class-wise Reports
+              const Text(
+                "Class-wise Summary",
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+
+              const SizedBox(height: 10),
+
+              StreamBuilder<QuerySnapshot>(
+                stream: _db
+                    .collection('classes')
+                    .where('userId', isEqualTo: _user.uid)
+                    .snapshots(),
+                builder: (_, snap) {
+                  if (!snap.hasData) return const SizedBox();
+
+                  return Column(
+                    children: snap.data!.docs.map((doc) {
+                      final d = doc.data() as Map<String, dynamic>? ??
+                          <String, dynamic>{};
+                      final className = d['name'] ?? 'Class';
+                      final totalStudents = d['totalStudents'] ?? 0;
+
+                      return Card(
+                        child: ListTile(
+                          leading: const Icon(Icons.class_),
+                          title: Text(className),
+                          subtitle: Text("$totalStudents Students"),
+                          trailing:
+                              const Icon(Icons.arrow_forward_ios, size: 14),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ClassReportScreen(
+                                  classId: doc.id,
+                                  className: className,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                    }).toList(),
+                  );
+                },
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _statCard(String title, String value, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color.withOpacity(.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(fontSize: 13, color: Colors.grey),
             ),
-          ),
-        ],
+            const SizedBox(height: 6),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

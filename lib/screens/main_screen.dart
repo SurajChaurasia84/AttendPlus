@@ -20,8 +20,8 @@ class _MainScreenState extends State<MainScreen> {
     HomeScreen(),
     ClassesScreen(fromAttendance: true), // 👈 choose class for attendance
     ClassesScreen(),                     // 👈 normal class management
-    GlobalReportsScreen(),
-    // ReportsScreen(),
+    // GlobalReportsScreen(),
+    ReportsScreen(),
     SettingsScreen(),
   ];
 

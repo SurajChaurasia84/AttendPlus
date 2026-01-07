@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -27,48 +28,58 @@ class AttendPlusApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'AttendPlus',
-      theme: ThemeData(
-        primarySwatch: Colors.indigo,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Color(0xFFFFF7FA), // transparent status bar
+        statusBarIconBrightness: Brightness.dark, // dark status bar icons
+        systemNavigationBarColor: Color(0xFFFFF7FA), // navigation bar color
+        systemNavigationBarIconBrightness: Brightness.dark, // dark nav icons
       ),
-      home: FutureBuilder<bool>(
-        future: _isFirstLaunch(),
-        builder: (context, snapshot) {
-          // ⏳ Waiting for SharedPreferences
-          if (!snapshot.hasData) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
-          }
-
-          // 🟡 FIRST LAUNCH → Welcome Screen
-          if (snapshot.data == true) {
-            return const WelcomeScreen();
-          }
-
-          // 🔵 AFTER FIRST LAUNCH → Auth Check
-          return StreamBuilder<User?>(
-            stream: FirebaseAuth.instance.authStateChanges(),
-            builder: (context, authSnapshot) {
-              if (authSnapshot.connectionState ==
-                  ConnectionState.waiting) {
+      child: SafeArea(
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'Attend Plus',
+          theme: ThemeData(
+            primarySwatch: Colors.indigo,
+          ),
+          home: FutureBuilder<bool>(
+            future: _isFirstLaunch(),
+            builder: (context, snapshot) {
+              // ⏳ Waiting for SharedPreferences
+              if (!snapshot.hasData) {
                 return const Scaffold(
                   body: Center(child: CircularProgressIndicator()),
                 );
               }
 
-              // 🟢 Logged in
-              if (authSnapshot.hasData) {
-                return const MainScreen();
+              // 🟡 FIRST LAUNCH → Welcome Screen
+              if (snapshot.data == true) {
+                return const WelcomeScreen();
               }
 
-              // 🔴 Not logged in
-              return const LoginScreen();
+              // 🔵 AFTER FIRST LAUNCH → Auth Check
+              return StreamBuilder<User?>(
+                stream: FirebaseAuth.instance.authStateChanges(),
+                builder: (context, authSnapshot) {
+                  if (authSnapshot.connectionState ==
+                      ConnectionState.waiting) {
+                    return const Scaffold(
+                      body: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+
+                  // 🟢 Logged in
+                  if (authSnapshot.hasData) {
+                    return const MainScreen();
+                  }
+
+                  // 🔴 Not logged in
+                  return const LoginScreen();
+                },
+              );
             },
-          );
-        },
+          ),
+        ),
       ),
     );
   }
