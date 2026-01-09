@@ -7,6 +7,7 @@ import 'notifications_screen.dart';
 import 'classes_screen.dart';
 import 'reports_screen.dart';
 import 'settings_screen.dart';
+import 'submitted_classes_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,15 +20,12 @@ class _HomeScreenState extends State<HomeScreen> {
   int _notificationCount = 0;
   String _userName = 'Teacher';
 
-  String get today => DateFormat('yyyy-MM-dd').format(DateTime.now());
+  DateTime _selectedDate = DateTime.now();
 
-  String get formattedDate {
-    final now = DateTime.now();
-    final day = DateFormat('EE').format(now); // Mon, Tue
-    final date = DateFormat('dd MMM').format(now);
-    final time = DateFormat('hh:mm a').format(now);
-    return "$day · $date , $time";
-  }
+  String get selectedDateKey => DateFormat('yyyy-MM-dd').format(_selectedDate);
+
+  List<DateTime> get _last7Days =>
+      List.generate(7, (i) => DateTime.now().subtract(Duration(days: 6 - i)));
 
   late Stream<Map<String, int>> _attendanceStream;
 
@@ -39,11 +37,12 @@ class _HomeScreenState extends State<HomeScreen> {
     _attendanceStream = _attendanceStats();
   }
 
-  /// 🔹 Fetch user name from Firestore
   Future<void> _fetchUserName() async {
     final uid = FirebaseAuth.instance.currentUser!.uid;
-    final doc =
-        await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
     if (doc.exists) {
       setState(() {
         _userName = doc['name'] ?? 'Teacher';
@@ -51,7 +50,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  /// 🔹 Fetch notification count
   void _fetchNotifications() {
     final uid = FirebaseAuth.instance.currentUser!.uid;
     FirebaseFirestore.instance
@@ -66,7 +64,6 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  /// 🔹 Clear notifications when opened
   void _clearNotifications() async {
     final uid = FirebaseAuth.instance.currentUser!.uid;
     final snap = await FirebaseFirestore.instance
@@ -79,234 +76,302 @@ class _HomeScreenState extends State<HomeScreen> {
       await doc.reference.update({'read': true});
     }
 
-    setState(() {
-      _notificationCount = 0;
-    });
+    setState(() => _notificationCount = 0);
   }
 
-  /// 🔹 Attendance stats stream
   Stream<Map<String, int>> _attendanceStats() async* {
     final uid = FirebaseAuth.instance.currentUser!.uid;
-    final classesQuery =
-        FirebaseFirestore.instance.collection('classes').where('userId', isEqualTo: uid);
+    final classesQuery = FirebaseFirestore.instance
+        .collection('classes')
+        .where('userId', isEqualTo: uid);
 
     await for (final classSnap in classesQuery.snapshots()) {
       final totalClasses = classSnap.docs.length;
-      int todaySubmitted = 0;
+      int submitted = 0;
 
       for (var cls in classSnap.docs) {
         final doc = await FirebaseFirestore.instance
             .collection('classes')
             .doc(cls.id)
             .collection('attendance')
-            .doc(today)
+            .doc(selectedDateKey)
             .get();
-        if (doc.exists) todaySubmitted++;
+        if (doc.exists) submitted++;
       }
 
-      yield {
-        'totalClasses': totalClasses,
-        'todaySubmitted': todaySubmitted,
-      };
+      yield {'totalClasses': totalClasses, 'submitted': submitted};
     }
   }
 
-  /// 🔹 Refresh manually
-  Future<void> _refresh() async {
-    setState(() {
-      _attendanceStream = _attendanceStats();
-      _fetchUserName();
-      _fetchNotifications();
-    });
+  Future<void> _pickDateFromCalendar() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2023),
+      lastDate: DateTime.now(),
+    );
+
+    if (picked != null) {
+      setState(() {
+        _selectedDate = picked;
+        _attendanceStream = _attendanceStats();
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return const Center(child: Text("Please Login"));
-
     return Scaffold(
       body: SafeArea(
         child: StreamBuilder<Map<String, int>>(
           stream: _attendanceStream,
           builder: (context, snapshot) {
-            int totalClasses = 0;
-            int todaySubmitted = 0;
-            if (snapshot.hasData) {
-              totalClasses = snapshot.data!['totalClasses']!;
-              todaySubmitted = snapshot.data!['todaySubmitted']!;
-            }
+            final total = snapshot.data?['totalClasses'] ?? 0;
+            final submitted = snapshot.data?['submitted'] ?? 0;
+            final percent = total == 0 ? 0.0 : (submitted / total) * 100;
 
-            final attendancePercent =
-                totalClasses == 0 ? 0 : (todaySubmitted / totalClasses) * 100;
-
-            return RefreshIndicator(
-              onRefresh: _refresh,
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 🌟 Top Header
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Hello, $_userName",
-                              style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                              ),
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  /// HEADER
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Hello, $_userName',
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              formattedDate,
-                              style: TextStyle(
-                                  fontSize: 14, color: Colors.grey.shade600),
-                            ),
-                          ],
-                        ),
-                        Stack(
-                          children: [
-                            IconButton(
-                              icon:
-                                  const Icon(Icons.notifications_none, size: 30),
-                              onPressed: () {
-                                _clearNotifications();
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        const NotificationsScreen(),
-                                  ),
-                                );
-                              },
-                            ),
-                            if (_notificationCount > 0)
-                              Positioned(
-                                right: 6,
-                                top: 6,
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: const BoxDecoration(
-                                    color: Colors.red,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Text(
-                                    '$_notificationCount',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            DateFormat('EEE, dd MMM').format(_selectedDate),
+                            style: TextStyle(color: Colors.grey.shade600),
+                          ),
+                        ],
+                      ),
+                      Stack(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.notifications_none, size: 30),
+                            onPressed: () {
+                              _clearNotifications();
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const NotificationsScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                          if (_notificationCount > 0)
+                            Positioned(
+                              right: 6,
+                              top: 6,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Text(
+                                  '$_notificationCount',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
                               ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
 
-                    // 📊 Dashboard Cards
-                    Row(
-                      children: [
-                        _infoCard(
-                          title: "Today Attendance",
-                          value: "$todaySubmitted / $totalClasses",
-                          subtitle: "Submitted",
-                          icon: Icons.how_to_reg,
-                          color: Colors.indigo,
-                        ),
-                        const SizedBox(width: 12),
-                        _infoCard(
-                          title: "Total Classes",
-                          value: "$totalClasses",
-                          subtitle: "All Subjects",
-                          icon: Icons.book,
-                          color: Colors.green,
-                        ),
-                        const SizedBox(width: 12),
-                        _infoCard(
-                          title: "Attendance %",
-                          value: "${attendancePercent.toStringAsFixed(1)}%",
-                          subtitle: "Today",
-                          icon: Icons.bar_chart,
-                          color: Colors.orange,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
+                  const SizedBox(height: 12),
 
-                    // ⚡ Quick Actions
-                    const Text(
-                      "Quick Actions",
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: [
-                        _actionButton(
-                          icon: Icons.how_to_reg,
-                          label: "Take Attendance",
-                          color: Colors.indigo,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    const ClassesScreen(fromAttendance: true),
+                  /// DATE PUNCH STRIP
+                  SizedBox(
+                    height: 58,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final totalWidth = constraints.maxWidth;
+                        final iconWidth = 32.0;
+                        final spacing = 4.0;
+                        final dateWidth =
+                            (totalWidth - iconWidth - spacing) / 7;
+
+                        return Row(
+                          children: [
+                            SizedBox(
+                              width: iconWidth,
+                              child: GestureDetector(
+                                onTap: _pickDateFromCalendar,
+                                child:
+                                    const Icon(Icons.chevron_left, size: 24),
                               ),
-                            );
-                          },
-                        ),
-                        _actionButton(
-                          icon: Icons.bar_chart,
-                          label: "Reports",
-                          color: Colors.green,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const ReportsScreen()),
-                            );
-                          },
-                        ),
-                        _actionButton(
-                          icon: Icons.class_,
-                          label: "Classes",
-                          color: Colors.deepPurple,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const ClassesScreen()),
-                            );
-                          },
-                        ),
-                        _actionButton(
-                          icon: Icons.settings,
-                          label: "Settings",
-                          color: Colors.orange,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const SettingsScreen()),
-                            );
-                          },
-                        ),
-                      ],
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                padding: EdgeInsets.zero,
+                                itemCount: _last7Days.length,
+                                itemBuilder: (context, i) {
+                                  final d = _last7Days[i];
+                                  final isSelected = DateUtils.isSameDay(
+                                    d,
+                                    _selectedDate,
+                                  );
+
+                                  return SizedBox(
+                                    width: dateWidth,
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        setState(() {
+                                          _selectedDate = d;
+                                          _attendanceStream =
+                                              _attendanceStats();
+                                        });
+                                      },
+                                      child: Container(
+                                        margin: const EdgeInsets.symmetric(
+                                            horizontal: 2),
+                                        decoration: BoxDecoration(
+                                          color: isSelected
+                                              ? Theme.of(context).primaryColor
+                                              : Colors.grey.shade200,
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Text(
+                                              DateFormat('EEE').format(d),
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: isSelected
+                                                    ? Colors.white
+                                                    : Colors.black54,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              '${d.day}',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                                color: isSelected
+                                                    ? Colors.white
+                                                    : Colors.black,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
-                  ],
-                ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  const Text(
+                    "Today's Overview",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 12),
+
+                  Row(
+                    children: [
+                      _infoCard(
+                        'Submitted',
+                        '$submitted / $total',
+                        Icons.how_to_reg,
+                        Colors.indigo,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  SubmittedClassesScreen(date: _selectedDate),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 12),
+                      _attendanceCircle(percent),
+                    ],
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  const Text(
+                    'Quick Actions',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 12),
+
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      _action(
+                        'Take Attendance',
+                        Icons.how_to_reg,
+                        Colors.indigo,
+                        () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ClassesScreen(
+                                  fromAttendance: true),
+                            ),
+                          );
+                        },
+                      ),
+                      _action('Reports', Icons.bar_chart, Colors.green, () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ReportsScreen(),
+                          ),
+                        );
+                      }),
+                      _action('Classes', Icons.class_, Colors.deepPurple, () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ClassesScreen(),
+                          ),
+                        );
+                      }),
+                      _action('Settings', Icons.settings, Colors.orange, () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const SettingsScreen(),
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ],
               ),
             );
           },
@@ -315,69 +380,106 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _infoCard({
-    required String title,
-    required String value,
-    required String subtitle,
-    required IconData icon,
-    required Color color,
+  Widget _infoCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color, {
+    VoidCallback? onTap,
   }) {
-    return Flexible(
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          height: 122,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: color),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                  ),
+                  Text(title, style: const TextStyle(color: Colors.grey)),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _attendanceCircle(double percent) {
+    return Expanded(
       child: Container(
+        height: 122,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.12),
+          color: Colors.orange.withOpacity(0.12),
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.grey.shade200, blurRadius: 6, offset: const Offset(0, 2)),
-          ],
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: color),
-            const SizedBox(height: 12),
-            Text(
-              value,
-              style:
-                  TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color),
+            SizedBox(
+              height: 70,
+              width: 70,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  CircularProgressIndicator(
+                    value: percent / 100,
+                    strokeWidth: 7,
+                    backgroundColor: Colors.orange.withOpacity(0.2),
+                    valueColor:
+                        const AlwaysStoppedAnimation(Colors.orange),
+                  ),
+                  Text('${percent.toStringAsFixed(0)}%'),
+                ],
+              ),
             ),
-            const SizedBox(height: 4),
-            Text(title, style: const TextStyle(fontSize: 14)),
-            Text(subtitle, style: const TextStyle(color: Colors.grey)),
+            // const SizedBox(height: 8),
+            const Text('Attendance', style: TextStyle(color: Colors.grey)),
           ],
         ),
       ),
     );
   }
 
-  Widget _actionButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
+  Widget _action(String label, IconData icon, Color color, VoidCallback onTap) {
     return SizedBox(
       width: 150,
+      height: 100,
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 18),
           decoration: BoxDecoration(
             color: color.withOpacity(0.18),
             borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.grey.shade200, blurRadius: 5, offset: const Offset(0, 2)),
-            ],
           ),
           child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, color: color, size: 30),
               const SizedBox(height: 8),
-              Text(label,
-                  style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+              Text(
+                label,
+                style: TextStyle(color: color, fontWeight: FontWeight.w600),
+              ),
             ],
           ),
         ),

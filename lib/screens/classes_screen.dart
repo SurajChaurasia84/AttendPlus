@@ -9,10 +9,7 @@ import 'add_class_screen.dart';
 class ClassesScreen extends StatefulWidget {
   final bool fromAttendance;
 
-  const ClassesScreen({
-    super.key,
-    this.fromAttendance = false,
-  });
+  const ClassesScreen({super.key, this.fromAttendance = false});
 
   @override
   State<ClassesScreen> createState() => _ClassesScreenState();
@@ -27,20 +24,18 @@ class _ClassesScreenState extends State<ClassesScreen> {
   /// helper to sort favorites on top
   List<QueryDocumentSnapshot> _sortDocs(List<QueryDocumentSnapshot> docs) {
     docs.sort((a, b) {
-      // Safely check for 'isFavorite' field
       bool aFav = a.data() is Map<String, dynamic> &&
-          (a.data() as Map<String, dynamic>).containsKey('isFavorite')
+              (a.data() as Map<String, dynamic>).containsKey('isFavorite')
           ? (a.data() as Map<String, dynamic>)['isFavorite'] as bool
           : false;
       bool bFav = b.data() is Map<String, dynamic> &&
-          (b.data() as Map<String, dynamic>).containsKey('isFavorite')
+              (b.data() as Map<String, dynamic>).containsKey('isFavorite')
           ? (b.data() as Map<String, dynamic>)['isFavorite'] as bool
           : false;
 
       if (aFav && !bFav) return -1;
       if (!aFav && bFav) return 1;
 
-      // newest first
       Timestamp aTime = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp;
       Timestamp bTime = (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp;
       return bTime.compareTo(aTime);
@@ -51,9 +46,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
   @override
   Widget build(BuildContext context) {
     if (_user == null) {
-      return const Scaffold(
-        body: Center(child: Text("Please login")),
-      );
+      return const Scaffold(body: Center(child: Text("Please login")));
     }
 
     return Scaffold(
@@ -88,78 +81,80 @@ class _ClassesScreenState extends State<ClassesScreen> {
             itemBuilder: (_, index) {
               final doc = docs[index];
               final data = doc.data() as Map<String, dynamic>;
-
               final classId = doc.id;
               final className = data['name'] ?? '';
               final subjectName = data['subjectName'] ?? '';
-              final totalStudents = data['totalStudents'] ?? 0;
-
-              // Safe check for isFavorite
-              final isFav = data.containsKey('isFavorite') ? data['isFavorite'] as bool : false;
+              final isFav = data['isFavorite'] ?? false;
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
                 elevation: 2,
                 child: ListTile(
+                  contentPadding: const EdgeInsets.only(left: 16, right: 4),
                   leading: const Icon(Icons.class_),
-
-                  /// class name • subject in same row
-                  title: Row(
-                    children: [
-                      Text(
-                        className,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      if (subjectName.isNotEmpty) ...[
-                        const SizedBox(width: 6),
-                        const Text(
-                          '•',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          subjectName,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ],
+                  title: Text(
+                    className,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                  subtitle: Text('$totalStudents Students'),
-
-                  /// trailing: star + arrow
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: Icon(
-                          isFav ? Icons.star : Icons.star_border,
-                          color: isFav
-                              ? Theme.of(context).colorScheme.primary
-                              : Colors.grey,
-                        ),
-                        onPressed: () async {
-                          final newFavStatus = !isFav;
-
-                          /// update in firestore
-                          await _classesCollection
-                              .doc(classId)
-                              .update({'isFavorite': newFavStatus});
-                        },
-                      ),
-                      const Icon(Icons.arrow_forward_ios, size: 16),
-                    ],
+                  subtitle: StreamBuilder<QuerySnapshot>(
+                    stream: _classesCollection
+                        .doc(classId)
+                        .collection('students')
+                        .snapshots(),
+                    builder: (_, snap) {
+                      if (!snap.hasData) return const SizedBox();
+                      final totalStudents = snap.data!.docs.length;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (subjectName.isNotEmpty)
+                            Text(
+                              subjectName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              const Icon(Icons.group, size: 14, color: Colors.grey),
+                              const SizedBox(width: 4),
+                              Text(
+                                '$totalStudents Students',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      );
+                    },
                   ),
-
-                  /// 👉 NAVIGATION
+                  trailing: IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    icon: Icon(
+                      isFav ? Icons.star : Icons.star_border,
+                      color: isFav
+                          ? Theme.of(context).colorScheme.primary
+                          : Colors.grey,
+                    ),
+                    onPressed: () async {
+                      await _classesCollection.doc(classId).update({
+                        'isFavorite': !isFav,
+                      });
+                    },
+                  ),
                   onTap: () {
                     if (widget.fromAttendance) {
                       Navigator.push(
@@ -197,9 +192,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => const AddClassScreen(),
-                  ),
+                  MaterialPageRoute(builder: (_) => const AddClassScreen()),
                 );
               },
               child: const Icon(Icons.add),

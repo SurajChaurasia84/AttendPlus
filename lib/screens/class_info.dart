@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'student_info.dart';
 
 class ClassInfoScreen extends StatelessWidget {
   final String classId;
 
-  const ClassInfoScreen({
-    super.key,
-    required this.classId,
-  });
+  const ClassInfoScreen({super.key, required this.classId});
 
   CollectionReference get _classes =>
       FirebaseFirestore.instance.collection('classes');
@@ -24,19 +22,11 @@ class ClassInfoScreen extends StatelessWidget {
   ) {
     switch (value) {
       case 'edit_class':
-        _showEditDialog(
-          context,
-          isSubject: false,
-          initialValue: className,
-        );
+        _showEditDialog(context, isSubject: false, initialValue: className);
         break;
 
       case 'edit_subject':
-        _showEditDialog(
-          context,
-          isSubject: true,
-          initialValue: subjectName,
-        );
+        _showEditDialog(context, isSubject: true, initialValue: subjectName);
         break;
 
       case 'delete':
@@ -150,10 +140,7 @@ class ClassInfoScreen extends StatelessWidget {
                 if (subjectName.isNotEmpty)
                   Text(
                     subjectName,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey,
-                    ),
+                    style: const TextStyle(fontSize: 13, color: Colors.grey),
                   ),
               ],
             ),
@@ -162,10 +149,7 @@ class ClassInfoScreen extends StatelessWidget {
                 onSelected: (v) =>
                     _onMenuSelected(context, v, className, subjectName),
                 itemBuilder: (_) => const [
-                  PopupMenuItem(
-                    value: 'edit_class',
-                    child: Text('Edit Class'),
-                  ),
+                  PopupMenuItem(value: 'edit_class', child: Text('Edit Class')),
                   PopupMenuItem(
                     value: 'edit_subject',
                     child: Text('Edit Subject'),
@@ -173,10 +157,7 @@ class ClassInfoScreen extends StatelessWidget {
                   PopupMenuDivider(),
                   PopupMenuItem(
                     value: 'delete',
-                    child: Text(
-                      'Delete',
-                      style: TextStyle(color: Colors.red),
-                    ),
+                    child: Text('Delete', style: TextStyle(color: Colors.red)),
                   ),
                 ],
               ),
@@ -197,36 +178,54 @@ class ClassInfoScreen extends StatelessWidget {
               // ================= STUDENT LIST =================
               Expanded(
                 child: StreamBuilder<QuerySnapshot>(
-                  stream: _students
-                      .orderBy('addedAt', descending: true)
-                      .snapshots(),
+                  stream: _students.orderBy('rollNo').snapshots(),
                   builder: (_, snapshot) {
                     if (!snapshot.hasData) {
-                      return const Center(
-                        child: CircularProgressIndicator(),
-                      );
+                      return const Center(child: CircularProgressIndicator());
                     }
 
                     final docs = snapshot.data!.docs;
+
                     if (docs.isEmpty) {
-                      return const Center(
-                        child: Text("No students yet"),
-                      );
+                      return const Center(child: Text("No students yet"));
                     }
 
                     return ListView.builder(
-                      padding: const EdgeInsets.all(16),
                       itemCount: docs.length,
                       itemBuilder: (_, i) {
-                        final s =
-                            docs[i].data() as Map<String, dynamic>;
+                        final doc = docs[i];
+                        final s = doc.data() as Map<String, dynamic>;
 
                         return Card(
+                          elevation: 0, // ✅ shadow removed
+                          color: Colors.transparent, // ✅ background removed
+                          margin: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            // vertical: 6,
+                          ),
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.zero, // ✅ no outline
+                          ),
                           child: ListTile(
+                            tileColor:
+                                Colors.transparent, // ✅ tile background removed
                             leading: const Icon(Icons.person),
                             title: Text(s['name'] ?? ''),
-                            subtitle:
-                                Text('Roll No: ${s['rollNo'] ?? '-'}'),
+                            subtitle: Text('Roll No: ${s['rollNo'] ?? '-'}'),
+
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => StudentInfoScreen(
+                                    classId: classId,
+                                    studentId: doc.id,
+                                    studentName: s['name'],
+                                    rollNo: s['rollNo']?.toString() ?? '',
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         );
                       },

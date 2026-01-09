@@ -36,10 +36,14 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
         .collection('classes')
         .doc(widget.classId)
         .collection('attendance')
-        .where(FieldPath.documentId,
-            isGreaterThanOrEqualTo: DateFormat('yyyy-MM-dd').format(start))
-        .where(FieldPath.documentId,
-            isLessThanOrEqualTo: DateFormat('yyyy-MM-dd').format(end))
+        .where(
+          FieldPath.documentId,
+          isGreaterThanOrEqualTo: DateFormat('yyyy-MM-dd').format(start),
+        )
+        .where(
+          FieldPath.documentId,
+          isLessThanOrEqualTo: DateFormat('yyyy-MM-dd').format(end),
+        )
         .get();
 
     Map<String, int> total = {};
@@ -86,9 +90,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
     final monthLabel = DateFormat('MMMM yyyy').format(selectedMonth);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text("${widget.className} Report"),
-      ),
+      appBar: AppBar(title: Text("${widget.className} Report")),
       body: FutureBuilder<Map<String, dynamic>>(
         future: _generateReport(),
         builder: (_, snap) {
@@ -101,8 +103,9 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           final avg = data['overall'];
 
           // Students with <75% attendance
-          final lowAttendance =
-              students.where((s) => s['percent'] < 75).toList();
+          final lowAttendance = students
+              .where((s) => s['percent'] < 75)
+              .toList();
 
           // Remaining students (>=75%)
           final normalAttendance = students
@@ -117,7 +120,9 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
                 child: Text(
                   monthLabel,
                   style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.bold),
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
 
@@ -136,59 +141,28 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
               /// ⚠️ Low Attendance
               Text(
                 "Low Attendance (<75%)",
-                style:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
 
               const SizedBox(height: 8),
 
               if (lowAttendance.isEmpty)
-                const Text("🎉 No low attendance students")
+                const Text("No low attendance students")
               else
-                ...lowAttendance.map((s) => ListTile(
-                      leading:
-                          const Icon(Icons.warning, color: Colors.red),
-                      title: Text(s['name']),
-                      subtitle: Text("Roll No: ${s['rollNo']}"),
-                      trailing: Text(
-                        "${s['percent'].toStringAsFixed(0)}%",
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold, color: Colors.red),
-                      ),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => StudentInfoScreen(
-                              classId: widget.classId,
-                              studentId: s['id'],
-                              studentName: s['name'],
-                              rollNo: s['rollNo'].toString(),
-                            ),
-                          ),
-                        );
-                      },
-                    )),
-
-              const SizedBox(height: 20),
-
-              /// 📄 Other Students (>=75%)
-              if (normalAttendance.isNotEmpty)
-                Text(
-                  "Other Students (≥75%)",
-                  style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-
-              const SizedBox(height: 8),
-
-              ...normalAttendance.map((s) => ListTile(
-                    leading: const Icon(Icons.person),
+                ...lowAttendance.map(
+                  (s) => ListTile(
+                    leading: const Icon(Icons.warning, color: Colors.red),
                     title: Text(s['name']),
                     subtitle: Text("Roll No: ${s['rollNo']}"),
                     trailing: Text(
                       "${s['percent'].toStringAsFixed(0)}%",
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red,
+                      ),
                     ),
                     onTap: () {
                       Navigator.push(
@@ -203,7 +177,47 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
                         ),
                       );
                     },
-                  )),
+                  ),
+                ),
+
+              const SizedBox(height: 10),
+
+              /// 📄 Other Students (>=75%)
+              if (normalAttendance.isNotEmpty)
+                Text(
+                  "Other Students",
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+              const SizedBox(height: 8),
+
+              ...normalAttendance.map(
+                (s) => ListTile(
+                  leading: const Icon(Icons.person),
+                  title: Text(s['name']),
+                  subtitle: Text("Roll No: ${s['rollNo']}"),
+                  trailing: Text(
+                    "${s['percent'].toStringAsFixed(0)}%",
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => StudentInfoScreen(
+                          classId: widget.classId,
+                          studentId: s['id'],
+                          studentName: s['name'],
+                          rollNo: s['rollNo'].toString(),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
 
               const SizedBox(height: 30),
 
@@ -213,8 +227,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
                 label: const Text("Export Report (PDF / Excel)"),
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text("Export feature coming soon")),
+                    const SnackBar(content: Text("Export feature coming soon")),
                   );
                 },
               ),
@@ -233,9 +246,13 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              Text(value,
-                  style: const TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.bold)),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 4),
               Text(title, style: const TextStyle(color: Colors.grey)),
             ],

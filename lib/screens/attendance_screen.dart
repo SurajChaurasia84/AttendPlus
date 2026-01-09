@@ -107,7 +107,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             .collection('classes')
             .doc(widget.classId)
             .collection('students')
-            .orderBy('addedAt')
+            .orderBy('rollNo')
             .snapshots(),
         builder: (_, snapshot) {
           if (!snapshot.hasData) {

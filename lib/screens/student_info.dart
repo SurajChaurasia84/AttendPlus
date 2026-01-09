@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
-class StudentInfoScreen extends StatelessWidget {
+class StudentInfoScreen extends StatefulWidget {
   final String classId;
   final String studentId;
   final String studentName;
@@ -15,6 +15,21 @@ class StudentInfoScreen extends StatelessWidget {
     required this.studentName,
     required this.rollNo,
   });
+
+  @override
+  State<StudentInfoScreen> createState() => _StudentInfoScreenState();
+}
+
+class _StudentInfoScreenState extends State<StudentInfoScreen> {
+  late String studentName;
+  late String rollNo;
+
+  @override
+  void initState() {
+    super.initState();
+    studentName = widget.studentName;
+    rollNo = widget.rollNo;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,11 +45,34 @@ class StudentInfoScreen extends StatelessWidget {
             ),
           ],
         ),
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'edit') {
+                _showEditDialog(context);
+              } else if (value == 'delete') {
+                _confirmDelete(context);
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'edit', child: Text('Edit Name / Roll No')),
+              PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'delete',
+                child: Text(
+                  'Delete Student',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       body: FutureBuilder<List<_MonthGroup>>(
         future: _loadData(),
         builder: (_, snap) {
-          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+          if (!snap.hasData)
+            return const Center(child: CircularProgressIndicator());
 
           final monthGroups = snap.data!;
 
@@ -45,28 +83,27 @@ class StudentInfoScreen extends StatelessWidget {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Month title
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
                     child: Text(
                       month.title,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-
-                  // Month summary (below month title)
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
                     child: Text(
                       'Classes Taken: ${month.attendanceTakenCount}, Present: ${month.presentCount}, Attendance (in%): ${month.attendanceTakenCount == 0 ? 0 : ((month.presentCount / month.attendanceTakenCount) * 100).toStringAsFixed(1)}%',
                       style: const TextStyle(fontSize: 13, color: Colors.grey),
                     ),
                   ),
-
-                  // Column header
                   _headerRow(month.attendanceTakenCount, month.presentCount),
-
-                  // Month rows
                   ...month.rows.map(_dataRow).toList(),
                 ],
               );
@@ -81,12 +118,13 @@ class StudentInfoScreen extends StatelessWidget {
   Future<List<_MonthGroup>> _loadData() async {
     final attendanceSnap = await FirebaseFirestore.instance
         .collection('classes')
-        .doc(classId)
+        .doc(widget.classId)
         .collection('attendance')
         .get();
 
     final attendanceMap = {
-      for (var d in attendanceSnap.docs) d.id: d['records'] as Map<String, dynamic>? ?? {}
+      for (var d in attendanceSnap.docs)
+        d.id: d['records'] as Map<String, dynamic>? ?? {},
     };
 
     if (attendanceMap.isEmpty) return [];
@@ -99,7 +137,11 @@ class StudentInfoScreen extends StatelessWidget {
 
     final Map<String, _MonthGroup> grouped = {};
 
-    for (DateTime d = endDate; !d.isBefore(startDate); d = d.subtract(const Duration(days: 1))) {
+    for (
+      DateTime d = endDate;
+      !d.isBefore(startDate);
+      d = d.subtract(const Duration(days: 1))
+    ) {
       final monthKey = DateFormat('MMMM yyyy').format(d);
       grouped.putIfAbsent(monthKey, () => _MonthGroup(title: monthKey));
 
@@ -108,12 +150,14 @@ class StudentInfoScreen extends StatelessWidget {
       final attendanceDoc = attendanceMap[docId];
 
       if (isSunday) {
-        grouped[monthKey]!.rows.add(_RowData(
-          date: d,
-          attendanceTaken: true,
-          status: 'Holiday',
-          isHoliday: true,
-        ));
+        grouped[monthKey]!.rows.add(
+          _RowData(
+            date: d,
+            attendanceTaken: true,
+            status: 'Holiday',
+            isHoliday: true,
+          ),
+        );
         continue;
       }
 
@@ -121,13 +165,13 @@ class StudentInfoScreen extends StatelessWidget {
         grouped[monthKey]!.rows.add(_RowData(date: d, attendanceTaken: false));
       } else {
         grouped[monthKey]!.attendanceTakenCount++;
-        final status = attendanceDoc[studentId] == 'P' ? 'Present' : 'Absent';
+        final status = attendanceDoc[widget.studentId] == 'P'
+            ? 'Present'
+            : 'Absent';
         if (status == 'Present') grouped[monthKey]!.presentCount++;
-        grouped[monthKey]!.rows.add(_RowData(
-          date: d,
-          attendanceTaken: true,
-          status: status,
-        ));
+        grouped[monthKey]!.rows.add(
+          _RowData(date: d, attendanceTaken: true, status: status),
+        );
       }
     }
 
@@ -152,16 +196,16 @@ class StudentInfoScreen extends StatelessWidget {
   Widget _dataRow(_RowData row) {
     final attColor = row.attendanceTaken
         ? row.isHoliday
-            ? Colors.orange
-            : Colors.green
+              ? Colors.orange
+              : Colors.green
         : Colors.grey;
     final statusColor = row.status == 'Present'
         ? Colors.green
         : row.status == 'Absent'
-            ? Colors.red
-            : row.isHoliday
-                ? Colors.orange
-                : Colors.grey;
+        ? Colors.red
+        : row.isHoliday
+        ? Colors.orange
+        : Colors.grey;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -172,7 +216,9 @@ class StudentInfoScreen extends StatelessWidget {
             flex: 3,
           ),
           _cell(
-            row.isHoliday ? 'Holiday' : (row.attendanceTaken ? 'Taken' : 'Not Taken'),
+            row.isHoliday
+                ? 'Holiday'
+                : (row.attendanceTaken ? 'Taken' : 'Not Taken'),
             flex: 3,
             color: attColor,
           ),
@@ -195,6 +241,120 @@ class StudentInfoScreen extends StatelessWidget {
           fontWeight: bold ? FontWeight.bold : FontWeight.normal,
           color: color,
         ),
+      ),
+    );
+  }
+
+  /// ===================== EDIT STUDENT =====================
+  void _showEditDialog(BuildContext context) {
+    final nameController = TextEditingController(text: studentName);
+    final rollController = TextEditingController(text: rollNo);
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Edit Student'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: 'Student Name'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: rollController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Roll No'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final name = nameController.text.trim();
+              final roll = rollController.text.trim();
+              if (name.isEmpty || roll.isEmpty) return;
+
+              await FirebaseFirestore.instance
+                  .collection('classes')
+                  .doc(widget.classId)
+                  .collection('students')
+                  .doc(widget.studentId)
+                  .update({'name': name, 'rollNo': int.tryParse(roll) ?? roll});
+
+              // ✅ update state so AppBar refreshes
+              setState(() {
+                studentName = name;
+                rollNo = roll;
+              });
+
+              Navigator.pop(context);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ===================== DELETE STUDENT =====================
+  void _confirmDelete(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete Student'),
+        content: const Text(
+          'This will permanently delete the student and all related attendance records.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              final firestore = FirebaseFirestore.instance;
+
+              final classRef = firestore
+                  .collection('classes')
+                  .doc(widget.classId);
+
+              final studentRef = classRef
+                  .collection('students')
+                  .doc(widget.studentId);
+
+              await firestore.runTransaction((transaction) async {
+                final classSnap = await transaction.get(classRef);
+
+                if (!classSnap.exists) return;
+
+                final currentTotal = classSnap.data()?['totalStudents'] ?? 0;
+
+                // 1️⃣ delete student
+                transaction.delete(studentRef);
+
+                // 2️⃣ safely decrement (never below 0)
+                transaction.update(classRef, {
+                  'totalStudents': currentTotal > 0 ? currentTotal - 1 : 0,
+                });
+              });
+
+              Navigator.pop(context); // close dialog
+              Navigator.pop(context); // go back
+            },
+
+            child: const Text('Delete'),
+          ),
+        ],
       ),
     );
   }
