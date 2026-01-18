@@ -8,6 +8,7 @@ import 'firebase_options.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/main_screen.dart';
+import 'screens/auth/email_verification_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,10 +31,10 @@ class AttendPlusApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
-        statusBarColor: Color(0xFFFFF7FA), // transparent status bar
-        statusBarIconBrightness: Brightness.dark, // dark status bar icons
-        systemNavigationBarColor: Color(0xFFFFF7FA), // navigation bar color
-        systemNavigationBarIconBrightness: Brightness.dark, // dark nav icons
+        statusBarColor: Color(0xFFFFF7FA),
+        statusBarIconBrightness: Brightness.dark,
+        systemNavigationBarColor: Color(0xFFFFF7FA),
+        systemNavigationBarIconBrightness: Brightness.dark,
       ),
       child: SafeArea(
         child: MaterialApp(
@@ -42,22 +43,23 @@ class AttendPlusApp extends StatelessWidget {
           theme: ThemeData(
             primarySwatch: Colors.indigo,
           ),
+
+          /// 🔑 APP ENTRY LOGIC
           home: FutureBuilder<bool>(
             future: _isFirstLaunch(),
             builder: (context, snapshot) {
-              // ⏳ Waiting for SharedPreferences
               if (!snapshot.hasData) {
                 return const Scaffold(
                   body: Center(child: CircularProgressIndicator()),
                 );
               }
 
-              // 🟡 FIRST LAUNCH → Welcome Screen
+              /// 🟡 FIRST TIME USERS
               if (snapshot.data == true) {
                 return const WelcomeScreen();
               }
 
-              // 🔵 AFTER FIRST LAUNCH → Auth Check
+              /// 🔵 AUTH + EMAIL VERIFICATION CHECK
               return StreamBuilder<User?>(
                 stream: FirebaseAuth.instance.authStateChanges(),
                 builder: (context, authSnapshot) {
@@ -68,12 +70,20 @@ class AttendPlusApp extends StatelessWidget {
                     );
                   }
 
-                  // 🟢 Logged in
+                  /// 🟢 USER LOGGED IN
                   if (authSnapshot.hasData) {
+                    final user = authSnapshot.data!;
+
+                    /// ❌ EMAIL NOT VERIFIED → BLOCK ACCESS
+                    if (!user.emailVerified) {
+                      return EmailVerificationScreen(user: user);
+                    }
+
+                    /// ✅ EMAIL VERIFIED → ENTER APP
                     return const MainScreen();
                   }
 
-                  // 🔴 Not logged in
+                  /// 🔴 USER LOGGED OUT
                   return const LoginScreen();
                 },
               );

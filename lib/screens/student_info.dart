@@ -71,10 +71,24 @@ class _StudentInfoScreenState extends State<StudentInfoScreen> {
       body: FutureBuilder<List<_MonthGroup>>(
         future: _loadData(),
         builder: (_, snap) {
-          if (!snap.hasData)
+          if (snap.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
+          }
 
-          final monthGroups = snap.data!;
+          if (snap.hasError) {
+            return Center(child: Text('Error: ${snap.error}'));
+          }
+
+          final monthGroups = snap.data;
+
+          if (monthGroups == null || monthGroups.isEmpty) {
+            return const Center(
+              child: Text(
+                'No attendance data found',
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+            );
+          }
 
           return ListView.builder(
             itemCount: monthGroups.length,
@@ -196,23 +210,23 @@ class _StudentInfoScreenState extends State<StudentInfoScreen> {
   Widget _dataRow(_RowData row) {
     final attColor = row.attendanceTaken
         ? row.isHoliday
-              ? Colors.orange
-              : Colors.green
+            ? Colors.orange
+            : Colors.green
         : Colors.grey;
     final statusColor = row.status == 'Present'
         ? Colors.green
         : row.status == 'Absent'
-        ? Colors.red
-        : row.isHoliday
-        ? Colors.orange
-        : Colors.grey;
+            ? Colors.red
+            : row.isHoliday
+                ? Colors.orange
+                : Colors.grey;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
         children: [
           _cell(
-            '${DateFormat('dd MMM yyyy').format(row.date)} (${DateFormat('E').format(row.date)})',
+            '${DateFormat('dd MMM').format(row.date)} , ${DateFormat('E').format(row.date)}',
             flex: 3,
           ),
           _cell(
@@ -324,13 +338,10 @@ class _StudentInfoScreenState extends State<StudentInfoScreen> {
             onPressed: () async {
               final firestore = FirebaseFirestore.instance;
 
-              final classRef = firestore
-                  .collection('classes')
-                  .doc(widget.classId);
+              final classRef = firestore.collection('classes').doc(widget.classId);
 
-              final studentRef = classRef
-                  .collection('students')
-                  .doc(widget.studentId);
+              final studentRef =
+                  classRef.collection('students').doc(widget.studentId);
 
               await firestore.runTransaction((transaction) async {
                 final classSnap = await transaction.get(classRef);
@@ -351,7 +362,6 @@ class _StudentInfoScreenState extends State<StudentInfoScreen> {
               Navigator.pop(context); // close dialog
               Navigator.pop(context); // go back
             },
-
             child: const Text('Delete'),
           ),
         ],

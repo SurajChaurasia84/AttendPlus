@@ -18,7 +18,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _notificationCount = 0;
-  String _userName = 'Teacher';
+  //String _userName = 'Teacher';
+  String _userName = '';
 
   DateTime _selectedDate = DateTime.now();
 

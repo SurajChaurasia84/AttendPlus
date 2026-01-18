@@ -34,20 +34,13 @@ class _AddClassScreenState extends State<AddClassScreen> {
     setState(() => _loading = true);
 
     try {
-      // 🔹 Create class
-      final classRef = await FirebaseFirestore.instance
-          .collection('classes')
-          .add({
-            'name': className,
-            'userId': user.uid,
-            'totalStudents': 0,
-            'createdAt': FieldValue.serverTimestamp(),
-          });
-
-      // 🔹 Add subject
-      await classRef.collection('subjects').add({
-        'name': subjectName,
-        'addedAt': FieldValue.serverTimestamp(),
+      // 🔹 Add class with subject directly inside
+      await FirebaseFirestore.instance.collection('classes').add({
+        'name': className,
+        'subjectName': subjectName, // flat structure, no subcollection
+        'userId': user.uid,
+        'totalStudents': 0,
+        'createdAt': FieldValue.serverTimestamp(),
       });
 
       if (_keepAdding) {
