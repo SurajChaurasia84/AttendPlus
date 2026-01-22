@@ -98,7 +98,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 17,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w200,
                     ),
                   ),
                   subtitle: StreamBuilder<QuerySnapshot>(

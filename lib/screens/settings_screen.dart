@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:iconsax/iconsax.dart';
 import 'profile_screen.dart';
 import 'privacy_screen.dart';
+import 'app_info_screen.dart';
+import 'help_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -145,6 +147,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
 
+            ListTile(
+              leading: const Icon(Iconsax.info_circle),
+              title: const Text("App Info"),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AppInfoScreen()),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Iconsax.headphone),
+              title: const Text("Help & Support"),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const HelpScreen()),
+                );
+              },
+            ),
             const Divider(),
 
             // 🔹 Logout

@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
-import 'notifications_screen.dart';
 import 'classes_screen.dart';
 import 'reports_screen.dart';
 import 'settings_screen.dart';
@@ -17,10 +16,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _notificationCount = 0;
-  //String _userName = 'Teacher';
   String _userName = '';
-
   DateTime _selectedDate = DateTime.now();
 
   String get selectedDateKey => DateFormat('yyyy-MM-dd').format(_selectedDate);
@@ -34,16 +30,12 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _fetchUserName();
-    _fetchNotifications();
     _attendanceStream = _attendanceStats();
   }
 
   Future<void> _fetchUserName() async {
     final uid = FirebaseAuth.instance.currentUser!.uid;
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .get();
+    final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
     if (doc.exists) {
       setState(() {
         _userName = doc['name'] ?? 'Teacher';
@@ -51,40 +43,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _fetchNotifications() {
-    final uid = FirebaseAuth.instance.currentUser!.uid;
-    FirebaseFirestore.instance
-        .collection('notifications')
-        .where('userId', isEqualTo: uid)
-        .where('read', isEqualTo: false)
-        .snapshots()
-        .listen((snap) {
-      setState(() {
-        _notificationCount = snap.docs.length;
-      });
-    });
-  }
-
-  void _clearNotifications() async {
-    final uid = FirebaseAuth.instance.currentUser!.uid;
-    final snap = await FirebaseFirestore.instance
-        .collection('notifications')
-        .where('userId', isEqualTo: uid)
-        .where('read', isEqualTo: false)
-        .get();
-
-    for (var doc in snap.docs) {
-      await doc.reference.update({'read': true});
-    }
-
-    setState(() => _notificationCount = 0);
-  }
-
   Stream<Map<String, int>> _attendanceStats() async* {
     final uid = FirebaseAuth.instance.currentUser!.uid;
-    final classesQuery = FirebaseFirestore.instance
-        .collection('classes')
-        .where('userId', isEqualTo: uid);
+    final classesQuery =
+        FirebaseFirestore.instance.collection('classes').where('userId', isEqualTo: uid);
 
     await for (final classSnap in classesQuery.snapshots()) {
       final totalClasses = classSnap.docs.length;
@@ -157,42 +119,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ],
                       ),
-                      Stack(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.notifications_none, size: 30),
-                            onPressed: () {
-                              _clearNotifications();
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const NotificationsScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                          if (_notificationCount > 0)
-                            Positioned(
-                              right: 6,
-                              top: 6,
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: const BoxDecoration(
-                                  color: Colors.red,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Text(
-                                  '$_notificationCount',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
                     ],
                   ),
 
@@ -206,8 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         final totalWidth = constraints.maxWidth;
                         final iconWidth = 32.0;
                         final spacing = 4.0;
-                        final dateWidth =
-                            (totalWidth - iconWidth - spacing) / 7;
+                        final dateWidth = (totalWidth - iconWidth - spacing) / 7;
 
                         return Row(
                           children: [
@@ -215,8 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               width: iconWidth,
                               child: GestureDetector(
                                 onTap: _pickDateFromCalendar,
-                                child:
-                                    const Icon(Icons.chevron_left, size: 24),
+                                child: const Icon(Icons.chevron_left, size: 24),
                               ),
                             ),
                             const SizedBox(width: 4),
@@ -227,10 +151,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 itemCount: _last7Days.length,
                                 itemBuilder: (context, i) {
                                   final d = _last7Days[i];
-                                  final isSelected = DateUtils.isSameDay(
-                                    d,
-                                    _selectedDate,
-                                  );
+                                  final isSelected = DateUtils.isSameDay(d, _selectedDate);
 
                                   return SizedBox(
                                     width: dateWidth,
@@ -238,23 +159,19 @@ class _HomeScreenState extends State<HomeScreen> {
                                       onTap: () {
                                         setState(() {
                                           _selectedDate = d;
-                                          _attendanceStream =
-                                              _attendanceStats();
+                                          _attendanceStream = _attendanceStats();
                                         });
                                       },
                                       child: Container(
-                                        margin: const EdgeInsets.symmetric(
-                                            horizontal: 2),
+                                        margin: const EdgeInsets.symmetric(horizontal: 2),
                                         decoration: BoxDecoration(
                                           color: isSelected
                                               ? Theme.of(context).primaryColor
                                               : Colors.grey.shade200,
-                                          borderRadius:
-                                              BorderRadius.circular(12),
+                                          borderRadius: BorderRadius.circular(12),
                                         ),
                                         child: Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
+                                          mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
                                             Text(
                                               DateFormat('EEE').format(d),
@@ -271,9 +188,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                               style: TextStyle(
                                                 fontSize: 16,
                                                 fontWeight: FontWeight.bold,
-                                                color: isSelected
-                                                    ? Colors.white
-                                                    : Colors.black,
+                                                color: isSelected ? Colors.white : Colors.black,
                                               ),
                                             ),
                                           ],
@@ -340,8 +255,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const ClassesScreen(
-                                  fromAttendance: true),
+                              builder: (_) => const ClassesScreen(fromAttendance: true),
                             ),
                           );
                         },
@@ -446,14 +360,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     value: percent / 100,
                     strokeWidth: 7,
                     backgroundColor: Colors.orange.withOpacity(0.2),
-                    valueColor:
-                        const AlwaysStoppedAnimation(Colors.orange),
+                    valueColor: const AlwaysStoppedAnimation(Colors.orange),
                   ),
                   Text('${percent.toStringAsFixed(0)}%'),
                 ],
               ),
             ),
-            // const SizedBox(height: 8),
             const Text('Attendance', style: TextStyle(color: Colors.grey)),
           ],
         ),
