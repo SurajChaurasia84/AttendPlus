@@ -153,10 +153,13 @@ class _FaqTile extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text(
-                faq.answer,
-                textAlign: TextAlign.left,
-                style: const TextStyle(color: Colors.indigo),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  faq.answer,
+                  textAlign: TextAlign.left,
+                  style: const TextStyle(color: Colors.indigo),
+                ),
               ),
             ),
           ],
@@ -197,10 +200,13 @@ class _UserQuestionTile extends StatelessWidget {
                 children: [
                   Padding(
                     padding: const EdgeInsets.all(16),
-                    child: Text(
-                      answer,
-                      textAlign: TextAlign.left,
-                      style: const TextStyle(color: Colors.indigo),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        answer,
+                        textAlign: TextAlign.left,
+                        style: const TextStyle(color: Colors.indigo),
+                      ),
                     ),
                   ),
                 ],
