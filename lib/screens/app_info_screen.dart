@@ -103,7 +103,7 @@ class AppInfoScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
 
-            _infoRow("Version", "1.0.0"),
+            _infoRow("Version", "1.1.0"),
             // _infoRow("Build", "100"),
             _infoRow("Platform", "Android"),
 
