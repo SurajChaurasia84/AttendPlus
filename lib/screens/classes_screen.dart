@@ -16,19 +16,24 @@ class ClassesScreen extends StatefulWidget {
 }
 
 class _ClassesScreenState extends State<ClassesScreen> {
-  final CollectionReference _classesCollection =
-      FirebaseFirestore.instance.collection('classes');
+  final CollectionReference _classesCollection = FirebaseFirestore.instance
+      .collection('classes');
 
   final User? _user = FirebaseAuth.instance.currentUser;
+  bool _isSearching = false;
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
 
   /// helper to sort favorites on top
   List<QueryDocumentSnapshot> _sortDocs(List<QueryDocumentSnapshot> docs) {
     docs.sort((a, b) {
-      bool aFav = a.data() is Map<String, dynamic> &&
+      bool aFav =
+          a.data() is Map<String, dynamic> &&
               (a.data() as Map<String, dynamic>).containsKey('isFavorite')
           ? (a.data() as Map<String, dynamic>)['isFavorite'] as bool
           : false;
-      bool bFav = b.data() is Map<String, dynamic> &&
+      bool bFav =
+          b.data() is Map<String, dynamic> &&
               (b.data() as Map<String, dynamic>).containsKey('isFavorite')
           ? (b.data() as Map<String, dynamic>)['isFavorite'] as bool
           : false;
@@ -36,8 +41,10 @@ class _ClassesScreenState extends State<ClassesScreen> {
       if (aFav && !bFav) return -1;
       if (!aFav && bFav) return 1;
 
-      Timestamp aTime = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp;
-      Timestamp bTime = (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp;
+      Timestamp aTime =
+          (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp;
+      Timestamp bTime =
+          (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp;
       return bTime.compareTo(aTime);
     });
     return docs;
@@ -51,7 +58,35 @@ class _ClassesScreenState extends State<ClassesScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.fromAttendance ? 'Select Class' : 'Classes'),
+        title: _isSearching
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: 'Search class or subject...',
+                  border: InputBorder.none,
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value.toLowerCase();
+                  });
+                },
+              )
+            : Text(widget.fromAttendance ? 'Select Class' : 'Classes'),
+        actions: [
+          IconButton(
+            icon: Icon(_isSearching ? Icons.close : Icons.search),
+            onPressed: () {
+              setState(() {
+                if (_isSearching) {
+                  _searchController.clear();
+                  _searchQuery = '';
+                }
+                _isSearching = !_isSearching;
+              });
+            },
+          ),
+        ],
       ),
 
       /// 📋 CLASSES LIST (AUTO UPDATE)
@@ -69,7 +104,16 @@ class _ClassesScreenState extends State<ClassesScreen> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final docs = _sortDocs(snapshot.data!.docs);
+          final docs = _sortDocs(snapshot.data!.docs).where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final className = (data['name'] ?? '').toString().toLowerCase();
+            final subjectName = (data['subjectName'] ?? '')
+                .toString()
+                .toLowerCase();
+
+            return className.contains(_searchQuery) ||
+                subjectName.contains(_searchQuery);
+          }).toList();
 
           if (docs.isEmpty) {
             return const Center(child: Text('No classes yet'));
@@ -125,7 +169,11 @@ class _ClassesScreenState extends State<ClassesScreen> {
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              const Icon(Icons.group, size: 14, color: Colors.grey),
+                              const Icon(
+                                Icons.group,
+                                size: 14,
+                                color: Colors.grey,
+                              ),
                               const SizedBox(width: 4),
                               Text(
                                 '$totalStudents Students',
