@@ -15,13 +15,12 @@ class FaqScreen extends StatelessWidget {
     ),
     _FaqItem(
       question: "Is AttendPlus free to use?",
-      answer:
-          "Yes, AttendPlus offers free features. Some advanced features may require a subscription.",
+      answer: "Yes, AttendPlus offers completely free features.",
     ),
     _FaqItem(
       question: "Is my data secure?",
       answer:
-          "Yes. We use Firebase security rules and industry-standard practices to keep your data safe.",
+          "Yes. We use optimized security rules and industry-standard practices to keep your data safe.",
     ),
   ];
 
@@ -156,6 +155,7 @@ class _FaqTile extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               child: Text(
                 faq.answer,
+                textAlign: TextAlign.left,
                 style: const TextStyle(color: Colors.indigo),
               ),
             ),
@@ -199,6 +199,7 @@ class _UserQuestionTile extends StatelessWidget {
                     padding: const EdgeInsets.all(16),
                     child: Text(
                       answer,
+                      textAlign: TextAlign.left,
                       style: const TextStyle(color: Colors.indigo),
                     ),
                   ),

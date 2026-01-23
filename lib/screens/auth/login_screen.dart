@@ -15,6 +15,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final email = TextEditingController();
   final password = TextEditingController();
   bool loading = false;
+  bool isPasswordVisible = false;
 
   // 🔹 LOGIN FUNCTION
   Future login() async {
@@ -99,13 +100,24 @@ class _LoginScreenState extends State<LoginScreen> {
               // 🔹 PASSWORD FIELD
               TextField(
                 controller: password,
-                obscureText: true,
-                decoration: const InputDecoration(
+                obscureText: !isPasswordVisible,
+                decoration: InputDecoration(
                   labelText: "Password",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Iconsax.lock),
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Iconsax.lock),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      isPasswordVisible ? Iconsax.eye : Iconsax.eye_slash,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        isPasswordVisible = !isPasswordVisible;
+                      });
+                    },
+                  ),
                 ),
               ),
+
               const SizedBox(height: 20),
 
               // 🔹 LOGIN BUTTON
