@@ -18,15 +18,14 @@ class _SignupScreenState extends State<SignupScreen> {
   final TextEditingController name = TextEditingController();
 
   bool loading = false;
+  bool isPasswordVisible = false;
 
   /// 🔹 SIGNUP FUNCTION
   Future<void> signup() async {
-    if (email.text.isEmpty ||
-        password.text.isEmpty ||
-        name.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Fill all fields")),
-      );
+    if (email.text.isEmpty || password.text.isEmpty || name.text.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Fill all fields")));
       return;
     }
 
@@ -34,11 +33,11 @@ class _SignupScreenState extends State<SignupScreen> {
 
     try {
       /// 1️⃣ CREATE USER
-      UserCredential userCred =
-          await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: email.text.trim(),
-        password: password.text.trim(),
-      );
+      UserCredential userCred = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(
+            email: email.text.trim(),
+            password: password.text.trim(),
+          );
 
       final User user = userCred.user!;
 
@@ -57,14 +56,12 @@ class _SignupScreenState extends State<SignupScreen> {
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (_) => EmailVerificationScreen(user: user),
-        ),
+        MaterialPageRoute(builder: (_) => EmailVerificationScreen(user: user)),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     }
 
     setState(() => loading = false);
@@ -101,10 +98,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
               const Text(
                 "Create Account",
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
               ),
 
               const SizedBox(height: 25),
@@ -137,11 +131,21 @@ class _SignupScreenState extends State<SignupScreen> {
               /// 🔒 PASSWORD
               TextField(
                 controller: password,
-                obscureText: true,
-                decoration: const InputDecoration(
+                obscureText: !isPasswordVisible,
+                decoration: InputDecoration(
                   labelText: "Password",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Iconsax.lock),
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Iconsax.lock),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      isPasswordVisible ? Iconsax.eye : Iconsax.eye_slash,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        isPasswordVisible = !isPasswordVisible;
+                      });
+                    },
+                  ),
                 ),
               ),
 
