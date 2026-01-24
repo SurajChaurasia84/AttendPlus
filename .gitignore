@@ -46,3 +46,4 @@ app.*.map.json
 
 # hide API Key
 lib/firebase_options.dart
+/firebase.json
